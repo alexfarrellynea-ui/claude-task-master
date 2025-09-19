@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import get_settings
 from ..persistence.models import AuditLog, ComplexityFeatures, Plan, PlanCandidate, PlanEdge, PlanNode, PlanStatus
 from ..persistence.storage import ArtifactStorage
-from .budget import BudgetResult, plan_budgets
+from .budget import BudgetResult, PlanBudgetingResult, plan_budgets
 from .ccs import ComplexityBreakdown, compute_complexity
 from .coverage import compute_coverage
 from .ingest import ingest
@@ -41,7 +41,9 @@ class PlannerOrchestrator:
         start = time.perf_counter()
         ingestion = ingest(params.prd_text, params.contract_document)
         build = build_plan(ingestion)
-        budget = plan_budgets(build.nodes)
+        budgeting: PlanBudgetingResult = plan_budgets(build.nodes, build.edges)
+        build = PlanBuildResult(nodes=budgeting.nodes, edges=budgeting.edges)
+        budget = budgeting.budget
         complexities = compute_complexity(build.nodes, build.edges)
         covered_ops = [op_id for node in build.nodes for op_id in node.instructions.get("contractOps", [])]
         coverage = compute_coverage(ingestion.contract.operations, covered_ops)
