@@ -77,6 +77,8 @@ dev-debug.log
 
 # NPMRC
 .npmrc
+.artifacts/
+*.egg-info/
 
 # Added by Task Master AI
 # Editor directories and files

@@ -1,325 +1,113 @@
-<a name="readme-top"></a>
+# TaskMaster Planner (Headless)
 
-<div align='center'>
-<a href="https://trendshift.io/repositories/13971" target="_blank"><img src="https://trendshift.io/api/badge/repositories/13971" alt="eyaltoledano%2Fclaude-task-master | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</div>
+TaskMaster Planner is a headless planning/orchestration service that ingests a PRD and contract (OpenAPI/GraphQL) and produces a contract-anchored execution plan. Plans include dependency-tracked DAGs of atomic tasks, token budgets, research-aware complexity scores, and context artifacts for downstream code-generation agents.
 
-<p align="center">
-  <a href="https://task-master.dev"><img src="./images/logo.png?raw=true" alt="Taskmaster logo"></a>
-</p>
+The service is implemented as a Python 3.11 FastAPI application backed by PostgreSQL/pgvector (metadata + memory graph), Redis (indices/locks), and S3/MinIO (artifact storage). All LLM/tool calls are routed through Intelligence Studio.
 
-<p align="center">
-<b>Taskmaster</b>: A task management system for AI-driven development, designed to work seamlessly with any AI chat.
-</p>
+## Core Capabilities
 
-<p align="center">
-  <a href="https://discord.gg/taskmasterai" target="_blank"><img src="https://dcbadge.limes.pink/api/server/https://discord.gg/taskmasterai?style=flat" alt="Discord"></a> |
-  <a href="https://docs.task-master.dev" target="_blank">Docs</a>
-</p>
+- **Contract-first planning** – imports OpenAPI 3.1 or GraphQL, enforces 100% endpoint/entity coverage, and auto-synthesizes repo-scaffold requests.
+- **Front-end gating** – omits FE tasks when the PRD lacks UI/UX signals.
+- **Graph-of-Thought candidate generation** – produces ≥3 candidate DAGs, persists UCB1 search traces, and records winner/fallback plans.
+- **Research-aware complexity scoring (CCS)** – blends dependency load, surface area, novelty, ambiguity, and research friction with configurable weights and recommended subtask counts.
+- **Window-safe token budgeting** – applies formal budgeting with headroom and automatic capping for every task payload.
+- **Context Cards & Project Memory Graph** – records compact summaries after task execution so downstream agents pull only the slices they need.
+- **REST API** – exposes `/plans`, `/plans/{id}`, `/plans/{id}/graph`, `/plans/{id}/tasks.json`, `/plans/{id}/report`, `/plans/{id}/rerun`, and `/executor/callbacks/{taskId}` endpoints with OpenAPI 3.1 documentation.
 
-<p align="center">
-  <a href="https://github.com/eyaltoledano/claude-task-master/actions/workflows/ci.yml"><img src="https://github.com/eyaltoledano/claude-task-master/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/eyaltoledano/claude-task-master/stargazers"><img src="https://img.shields.io/github/stars/eyaltoledano/claude-task-master?style=social" alt="GitHub stars"></a>
-  <a href="https://badge.fury.io/js/task-master-ai"><img src="https://badge.fury.io/js/task-master-ai.svg" alt="npm version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20with%20Commons%20Clause-blue.svg" alt="License"></a>
-</p>
+## Repository Layout
 
-<p align="center">
-  <a href="https://www.npmjs.com/package/task-master-ai"><img src="https://img.shields.io/npm/d18m/task-master-ai?style=flat" alt="NPM Downloads"></a>
-  <a href="https://www.npmjs.com/package/task-master-ai"><img src="https://img.shields.io/npm/dm/task-master-ai?style=flat" alt="NPM Downloads"></a>
-  <a href="https://www.npmjs.com/package/task-master-ai"><img src="https://img.shields.io/npm/dw/task-master-ai?style=flat" alt="NPM Downloads"></a>
-</p>
-
-## By [@eyaltoledano](https://x.com/eyaltoledano) & [@RalphEcom](https://x.com/RalphEcom)
-
-[![Twitter Follow](https://img.shields.io/twitter/follow/eyaltoledano)](https://x.com/eyaltoledano)
-[![Twitter Follow](https://img.shields.io/twitter/follow/RalphEcom)](https://x.com/RalphEcom)
-
-A task management system for AI-driven development with Claude, designed to work seamlessly with Cursor AI.
-
-## Documentation
-
-📚 **[View Full Documentation](https://docs.task-master.dev)**
-
-For detailed guides, API references, and comprehensive examples, visit our documentation site.
-
-### Quick Reference
-
-The following documentation is also available in the `docs` directory:
-
-- [Configuration Guide](docs/configuration.md) - Set up environment variables and customize Task Master
-- [Tutorial](docs/tutorial.md) - Step-by-step guide to getting started with Task Master
-- [Command Reference](docs/command-reference.md) - Complete list of all available commands
-- [Task Structure](docs/task-structure.md) - Understanding the task format and features
-- [Example Interactions](docs/examples.md) - Common Cursor AI interaction examples
-- [Migration Guide](docs/migration-guide.md) - Guide to migrating to the new project structure
-
-#### Quick Install for Cursor 1.0+ (One-Click)
-
-[![Add task-master-ai MCP server to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=task-master-ai&config=eyJjb21tYW5kIjoibnB4IC15IC0tcGFja2FnZT10YXNrLW1hc3Rlci1haSB0YXNrLW1hc3Rlci1haSIsImVudiI6eyJBTlRIUk9QSUNfQVBJX0tFWSI6IllPVVJfQU5USFJPUElDX0FQSV9LRVlfSEVSRSIsIlBFUlBMRVhJVFlfQVBJX0tFWSI6IllPVVJfUEVSUExFWElUWV9BUElfS0VZX0hFUkUiLCJPUEVOQUlfQVBJX0tFWSI6IllPVVJfT1BFTkFJX0tFWV9IRVJFIiwiR09PR0xFX0FQSV9LRVkiOiJZT1VSX0dPT0dMRV9LRVlfSEVSRSIsIk1JU1RSQUxfQVBJX0tFWSI6IllPVVJfTUlTVFJBTF9LRVlfSEVSRSIsIkdST1FfQVBJX0tFWSI6IllPVVJfR1JPUV9LRVlfSEVSRSIsIk9QRU5ST1VURVJfQVBJX0tFWSI6IllPVVJfT1BFTlJPVVRFUl9LRVlfSEVSRSIsIlhBSV9BUElfS0VZIjoiWU9VUl9YQUlfS0VZX0hFUkUiLCJBWlVSRV9PUEVOQUlfQVBJX0tFWSI6IllPVVJfQVpVUkVfS0VZX0hFUkUiLCJPTExBTUFfQVBJX0tFWSI6IllPVVJfT0xMQU1BX0FQSV9LRVlfSEVSRSJ9fQ%3D%3D)
-
-> **Note:** After clicking the link, you'll still need to add your API keys to the configuration. The link installs the MCP server with placeholder keys that you'll need to replace with your actual API keys.
-
-## Requirements
-
-Taskmaster utilizes AI across several commands, and those require a separate API key. You can use a variety of models from different AI providers provided you add your API keys. For example, if you want to use Claude 3.7, you'll need an Anthropic API key.
-
-You can define 3 types of models to be used: the main model, the research model, and the fallback model (in case either the main or research fail). Whatever model you use, its provider API key must be present in either mcp.json or .env.
-
-At least one (1) of the following is required:
-
-- Anthropic API key (Claude API)
-- OpenAI API key
-- Google Gemini API key
-- Perplexity API key (for research model)
-- xAI API Key (for research or main model)
-- OpenRouter API Key (for research or main model)
-- Claude Code (no API key required - requires Claude Code CLI)
-
-Using the research model is optional but highly recommended. You will need at least ONE API key (unless using Claude Code). Adding all API keys enables you to seamlessly switch between model providers at will.
-
-## Quick Start
-
-### Option 1: MCP (Recommended)
-
-MCP (Model Control Protocol) lets you run Task Master directly from your editor.
-
-#### 1. Add your MCP config at the following path depending on your editor
-
-| Editor       | Scope   | Linux/macOS Path                      | Windows Path                                      | Key          |
-| ------------ | ------- | ------------------------------------- | ------------------------------------------------- | ------------ |
-| **Cursor**   | Global  | `~/.cursor/mcp.json`                  | `%USERPROFILE%\.cursor\mcp.json`                  | `mcpServers` |
-|              | Project | `<project_folder>/.cursor/mcp.json`   | `<project_folder>\.cursor\mcp.json`               | `mcpServers` |
-| **Windsurf** | Global  | `~/.codeium/windsurf/mcp_config.json` | `%USERPROFILE%\.codeium\windsurf\mcp_config.json` | `mcpServers` |
-| **VS Code**  | Project | `<project_folder>/.vscode/mcp.json`   | `<project_folder>\.vscode\mcp.json`               | `servers`    |
-
-##### Manual Configuration
-
-###### Cursor & Windsurf (`mcpServers`)
-
-```json
-{
-  "mcpServers": {
-    "task-master-ai": {
-      "command": "npx",
-      "args": ["-y", "--package=task-master-ai", "task-master-ai"],
-      "env": {
-        "ANTHROPIC_API_KEY": "YOUR_ANTHROPIC_API_KEY_HERE",
-        "PERPLEXITY_API_KEY": "YOUR_PERPLEXITY_API_KEY_HERE",
-        "OPENAI_API_KEY": "YOUR_OPENAI_KEY_HERE",
-        "GOOGLE_API_KEY": "YOUR_GOOGLE_KEY_HERE",
-        "MISTRAL_API_KEY": "YOUR_MISTRAL_KEY_HERE",
-        "GROQ_API_KEY": "YOUR_GROQ_KEY_HERE",
-        "OPENROUTER_API_KEY": "YOUR_OPENROUTER_KEY_HERE",
-        "XAI_API_KEY": "YOUR_XAI_KEY_HERE",
-        "AZURE_OPENAI_API_KEY": "YOUR_AZURE_KEY_HERE",
-        "OLLAMA_API_KEY": "YOUR_OLLAMA_API_KEY_HERE"
-      }
-    }
-  }
-}
+```
+services/planner/
+├── app/
+│   ├── api/                 # FastAPI routers (plans, executor callbacks)
+│   ├── auth/                # OIDC/JWT helpers
+│   ├── domain/              # Planning, ingestion, complexity, budgeting
+│   ├── observability/       # OpenTelemetry configuration
+│   ├── persistence/         # SQLAlchemy models, DB session, artifact storage
+│   └── main.py              # FastAPI application factory
+├── migrations/              # (placeholder for Alembic migrations)
+└── ...
 ```
 
-> 🔑 Replace `YOUR_…_KEY_HERE` with your real API keys. You can remove keys you don't use.
+Tests live in `tests/planner/` and exercise the public HTTP surface.
 
-> **Note**: If you see `0 tools enabled` in the MCP settings, try removing the `--package=task-master-ai` flag from `args`.
+## Getting Started
 
-###### VS Code (`servers` + `type`)
+### Prerequisites
 
-```json
-{
-  "servers": {
-    "task-master-ai": {
-      "command": "npx",
-      "args": ["-y", "--package=task-master-ai", "task-master-ai"],
-      "env": {
-        "ANTHROPIC_API_KEY": "YOUR_ANTHROPIC_API_KEY_HERE",
-        "PERPLEXITY_API_KEY": "YOUR_PERPLEXITY_API_KEY_HERE",
-        "OPENAI_API_KEY": "YOUR_OPENAI_KEY_HERE",
-        "GOOGLE_API_KEY": "YOUR_GOOGLE_KEY_HERE",
-        "MISTRAL_API_KEY": "YOUR_MISTRAL_KEY_HERE",
-        "GROQ_API_KEY": "YOUR_GROQ_KEY_HERE",
-        "OPENROUTER_API_KEY": "YOUR_OPENROUTER_KEY_HERE",
-        "XAI_API_KEY": "YOUR_XAI_KEY_HERE",
-        "AZURE_OPENAI_API_KEY": "YOUR_AZURE_KEY_HERE",
-        "OLLAMA_API_KEY": "YOUR_OLLAMA_API_KEY_HERE"
-      },
-      "type": "stdio"
-    }
-  }
-}
-```
+- Python 3.11+
+- PostgreSQL 15 (production), pgvector extension
+- Redis 7+
+- MinIO/S3-compatible storage for artifacts
+- Intelligence Studio flow URL + API key (all AI calls are proxied through this endpoint)
 
-> 🔑 Replace `YOUR_…_KEY_HERE` with your real API keys. You can remove keys you don't use.
+For local development the service defaults to a SQLite database and local file-backed artifact storage.
 
-#### 2. (Cursor-only) Enable Taskmaster MCP
-
-Open Cursor Settings (Ctrl+Shift+J) ➡ Click on MCP tab on the left ➡ Enable task-master-ai with the toggle
-
-#### 3. (Optional) Configure the models you want to use
-
-In your editor's AI chat pane, say:
-
-```txt
-Change the main, research and fallback models to <model_name>, <model_name> and <model_name> respectively.
-```
-
-For example, to use Claude Code (no API key required):
-```txt
-Change the main model to claude-code/sonnet
-```
-
-[Table of available models](docs/models.md) | [Claude Code setup](docs/examples/claude-code-usage.md)
-
-#### 4. Initialize Task Master
-
-In your editor's AI chat pane, say:
-
-```txt
-Initialize taskmaster-ai in my project
-```
-
-#### 5. Make sure you have a PRD (Recommended)
-
-For **new projects**: Create your PRD at `.taskmaster/docs/prd.txt`  
-For **existing projects**: You can use `scripts/prd.txt` or migrate with `task-master migrate`
-
-An example PRD template is available after initialization in `.taskmaster/templates/example_prd.txt`.
-
-> [!NOTE]
-> While a PRD is recommended for complex projects, you can always create individual tasks by asking "Can you help me implement [description of what you want to do]?" in chat.
-
-**Always start with a detailed PRD.**
-
-The more detailed your PRD, the better the generated tasks will be.
-
-#### 6. Common Commands
-
-Use your AI assistant to:
-
-- Parse requirements: `Can you parse my PRD at scripts/prd.txt?`
-- Plan next step: `What's the next task I should work on?`
-- Implement a task: `Can you help me implement task 3?`
-- View multiple tasks: `Can you show me tasks 1, 3, and 5?`
-- Expand a task: `Can you help me expand task 4?`
-- **Research fresh information**: `Research the latest best practices for implementing JWT authentication with Node.js`
-- **Research with context**: `Research React Query v5 migration strategies for our current API implementation in src/api.js`
-
-[More examples on how to use Task Master in chat](docs/examples.md)
-
-### Option 2: Using Command Line
-
-#### Installation
+### Installation
 
 ```bash
-# Install globally
-npm install -g task-master-ai
+# create & activate a virtualenv
+python3 -m venv .venv
+source .venv/bin/activate
 
-# OR install locally within your project
-npm install task-master-ai
+# install dependencies
+default pip install -e .[dev]
 ```
 
-#### Initialize a new project
+### Configuration
+
+Settings are provided through environment variables prefixed with `PLANNER_`.
 
 ```bash
-# If installed globally
-task-master init
-
-# If installed locally
-npx task-master init
-
-# Initialize project with specific rules
-task-master init --rules cursor,windsurf,vscode
+export PLANNER_INTELLIGENCE_STUDIO__FLOW_URL="https://intelligence-studio.qa.apteancloud.dev/api/v1/run/..."
+export PLANNER_INTELLIGENCE_STUDIO__API_KEY="your-key"
+export PLANNER_STORAGE__DATABASE_URL="postgresql+asyncpg://user:pass@host:5432/taskmaster"
+export PLANNER_STORAGE__REDIS_URL="redis://localhost:6379/0"
+export PLANNER_STORAGE__S3_BUCKET="taskmaster-artifacts"
+export PLANNER_SECURITY__OIDC_ISSUER_URL="https://issuer/.well-known/openid-configuration"
+export PLANNER_SECURITY__OIDC_AUDIENCE="planner-api"
 ```
 
-This will prompt you for project details and set up a new project with the necessary files and structure.
-
-#### Common Commands
+Run the API locally:
 
 ```bash
-# Initialize a new project
-task-master init
-
-# Parse a PRD and generate tasks
-task-master parse-prd your-prd.txt
-
-# List all tasks
-task-master list
-
-# Show the next task to work on
-task-master next
-
-# Show specific task(s) - supports comma-separated IDs
-task-master show 1,3,5
-
-# Research fresh information with project context
-task-master research "What are the latest best practices for JWT authentication?"
-
-# Move tasks between tags (cross-tag movement)
-task-master move --from=5 --from-tag=backlog --to-tag=in-progress
-task-master move --from=5,6,7 --from-tag=backlog --to-tag=done --with-dependencies
-task-master move --from=5 --from-tag=backlog --to-tag=in-progress --ignore-dependencies
-
-# Generate task files
-task-master generate
-
-# Add rules after initialization
-task-master rules add windsurf,roo,vscode
+uvicorn services.planner.app.main:app --reload
 ```
 
-## Claude Code Support
+### API Overview
 
-Task Master now supports Claude models through the Claude Code CLI, which requires no API key:
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| POST   | `/plans` | Ingest PRD + contract, return winner plan summary |
+| GET    | `/plans/{id}` | Fetch plan summary with coverage metrics |
+| GET    | `/plans/{id}/tasks.json` | Retrieve task list JSON (contract-first plan) |
+| GET    | `/plans/{id}/graph` | Retrieve DAG nodes/edges |
+| GET    | `/plans/{id}/report` | Retrieve plan report (JSON artifact) |
+| POST   | `/plans/{id}/rerun` | Re-run planning with stored inputs |
+| POST   | `/executor/callbacks/{taskId}` | Executor reflection hook with Context Card emission |
 
-- **Models**: `claude-code/opus` and `claude-code/sonnet`
-- **Requirements**: Claude Code CLI installed
-- **Benefits**: No API key needed, uses your local Claude instance
+The OpenAPI 3.1 document is available at `/docs` (Swagger UI).
 
-[Learn more about Claude Code setup](docs/examples/claude-code-usage.md)
-
-## Troubleshooting
-
-### If `task-master init` doesn't respond
-
-Try running it with Node directly:
+### Testing
 
 ```bash
-node node_modules/claude-task-master/scripts/init.js
+pytest
 ```
 
-Or clone the repository and run:
+Tests spin up the FastAPI app against a temporary SQLite database and validate plan creation, DAG generation, and executor callbacks.
 
-```bash
-git clone https://github.com/eyaltoledano/claude-task-master.git
-cd claude-task-master
-node scripts/init.js
-```
+### Migrations
 
-## Contributors
+Alembic migrations should be added under `migrations/` (not included in this snapshot). Production deployments must run migrations before exposing the API.
 
-<a href="https://github.com/eyaltoledano/claude-task-master/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=eyaltoledano/claude-task-master" alt="Task Master project contributors" />
-</a>
+## Observability & Security
 
-## Star History
+- OpenTelemetry tracing is wired with optional OTLP exporters.
+- Structured error envelopes include remediation messages and correlation IDs.
+- JWT validation uses OIDC client-credentials; role mapping gates privileged endpoints when an issuer is configured.
+- Artifacts are content-hashed before upload to MinIO/S3.
+- Audit logs persist planner actions with principal and correlation ID.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=eyaltoledano/claude-task-master&type=Timeline)](https://www.star-history.com/#eyaltoledano/claude-task-master&Timeline)
+## License
 
-## Licensing
-
-Task Master is licensed under the MIT License with Commons Clause. This means you can:
-
-✅ **Allowed**:
-
-- Use Task Master for any purpose (personal, commercial, academic)
-- Modify the code
-- Distribute copies
-- Create and sell products built using Task Master
-
-❌ **Not Allowed**:
-
-- Sell Task Master itself
-- Offer Task Master as a hosted service
-- Create competing products based on Task Master
-
-See the [LICENSE](LICENSE) file for the complete license text and [licensing details](docs/licensing.md) for more information.
+MIT with Commons Clause – see [LICENSE](LICENSE).
