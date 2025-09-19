@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..domain.planner_service import PlanCreateParams, PlannerOrchestrator
-from ..domain.ingest import load_contract
+from ..domain.ingest import load_contract, parse_prd, synthesize_contract
 from ..domain.coverage import compute_coverage
 from ..persistence.models import ComplexityFeatures, Plan, PlanEdge, PlanNode
 from .deps import get_db_session
@@ -37,13 +37,19 @@ class ContractPayload(BaseModel):
     document: dict[str, Any] | None = Field(default=None)
     ref: str | None = None
 
-    def require_document(self) -> dict[str, Any]:
+    def require_document(self, prd_text: str | None = None) -> dict[str, Any]:
         if self.document:
             return self.document
         if self.ref and os.path.exists(self.ref):
             with open(self.ref, "r", encoding="utf-8") as handle:
                 return json.load(handle)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Contract document required")
+        if prd_text is not None:
+            prd = parse_prd(prd_text)
+            return synthesize_contract(prd)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Contract document or synthesizable PRD required",
+        )
 
 
 class PlanOptions(BaseModel):
@@ -107,7 +113,7 @@ async def create_plan(
 ):
     orchestrator = PlannerOrchestrator(session)
     prd_text = request.prd.require_text()
-    contract_document = request.contract.require_document()
+    contract_document = request.contract.require_document(prd_text)
     plan = await orchestrator.create_plan(
         PlanCreateParams(
             project_id=request.project_id,
