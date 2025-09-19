@@ -25,7 +25,7 @@ class PlanCreateParams:
     project_id: str
     run_id: str
     prd_text: str
-    contract_document: dict[str, Any]
+    contract_document: dict[str, Any] | None
     principal: str = "system"
     correlation_id: str = "system"
     options: dict[str, Any] | None = None
@@ -62,7 +62,8 @@ class PlannerOrchestrator:
                 "contractOperations": len(ingestion.contract.operations),
                 "ingest": {
                     "prdText": params.prd_text,
-                    "contract": params.contract_document,
+                    "contract": ingestion.contract.raw,
+                    "contractSource": "provided" if params.contract_document is not None else "synthesized",
                 },
                 "requestOptions": params.options or {},
             },

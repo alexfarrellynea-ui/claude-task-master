@@ -74,6 +74,38 @@ async def test_create_plan_and_retrieve():
 
 
 @pytest.mark.asyncio
+async def test_create_plan_with_synthesized_contract():
+    prd_text = """
+# Inventory Service
+## Capabilities
+Glossary
+Widget: Inventory item tracked for availability.
+Warehouse: Physical location where inventory is stored.
+## Constraints
+System must track widget stock levels across warehouses.
+Warehouse should synchronize counts nightly.
+"""
+    request_payload = {
+        "projectId": "proj-456",
+        "runId": str(uuid.uuid4()),
+        "prd": {"text": prd_text},
+        "contract": {},
+    }
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/plans", json=request_payload)
+        assert response.status_code == 201, response.text
+        data = response.json()
+        assert data["coverage"]["missingOperations"] == []
+        assert data["coverage"]["totalOperations"] > 0
+
+        plan_id = data["id"]
+        tasks_resp = await client.get(f"/plans/{plan_id}/tasks.json")
+        assert tasks_resp.status_code == 200
+        tasks = tasks_resp.json()
+        assert any(task["domain"] == "BE" for task in tasks)
+
+
+@pytest.mark.asyncio
 async def test_executor_callback_creates_context_card():
     request_payload = {
         "projectId": "proj-123",
